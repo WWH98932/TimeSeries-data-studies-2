@@ -1,0 +1,486 @@
+---
+title: "ECON403B Project 2"
+author: "Mohammed Ibraaz Syed, Yating Zhang, Minxuan Wang"
+date: "February 8, 2018"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(warn = -1)
+library(Quandl)
+library(tseries)
+library(forecast)
+library(dummies)
+library(zoo)
+```
+
+#### NOTE TO GRADER: The data is in months, so a 1.0 time lag indicates a 12 month lag, a 2.0 time lag indicates a 24 month lag, and a lag that plots to about 2.1 indicates a 25 month lag.
+
+#### **GROUP MEMBERS:** Mohammed Ibraaz Syed, Minxuan Wang, Yating Zhang
+
+#### I. Introduction
+
+###### The data we are using is data on New Privately Owned Housing Units Started. The date range we are using is January 1st, 1987, to December 1st, 2017 - a period of more than 30 years. The data is in thousands of units and is monthly.
+
+```{r cars}
+data = Quandl("FRED/HOUSTNSA", start_date = "1987-01-01")
+```
+
+#### II. Results
+
+###### **1. Modeling and Forecasting Trend**
+
+#### **Part (a)**
+
+###### Time series plot of data.
+
+```{r}
+Value<-ts(data$Value, start = c(1987, 1), frequency = 12)
+plot(Value)
+```
+
+#### **Part (b)**
+
+###### The plot in part (a) suggests that the data is not covariance stationary. Neither the mean nor the variance of the data point is constant over time.
+
+###### In particular, the variance between 1996 and 1999 is much greater than the variance between 2004 and 2010. Also, the data does not appear to have a constant mean invariant under time. The mean is much higher in the period between 2000 and 2014 than in the period between 1987 and 1994. Therefore, the data generating process between 1987 and 1994 appears to be different from the data generating process between 1994 and 2000 as well as from the data generating process between 2000 and 2014 - all suggesting that the data is not covariance stationary.
+
+#### **Part (c)**
+
+###### ACF of Housing Starts
+
+```{r}
+acf(Value,main="ACF of Housing Starts")
+#acf(diff(Value),main="ACF of the Housing Starts")
+```
+
+###### The ACF suggests that our data can be estimated using an MA(2) model as the ACF is zero after around lag 2.
+
+###### We can certainly say that an AR(1) model would not be appropriate for the data as the ACF does not exhibit an exponential decay, nor does it exhibit two alternating exponential decays.
+
+###### For an AR(2) model to be appropriate, we would need either a mixture of two exponential decays (for real-valued characteristic roots) or a damping sine and cosine waves (for complex-valued characteristic roots). However, the ACF plot does not exhibit such a decay pattern, but instead has a sharp cutoff around lag 2. This strongly indicates that an MA(2) model would best fit the data.
+
+```{r}
+# Verification that ACF cuts off after around lag 2:
+acf(Value,main="ACF of Housing Starts", xlim = c(-1, 5))
+```
+
+###### PACF of Housing Starts
+
+```{r}
+pacf(Value,main="PACF of the  Housing Starts")
+#pacf(diff(Value),main="PACF of the  Housing Starts")
+```
+
+###### The PACF is generally useful for determining the order of an AR model. The structure of the PACF indicates that an AR(1) model or even an AR(2) model could be potential fits as the PACF cuts off after around lag 2, however we noted that due to the structure of the ACF, an MA(2) model would likely be the best fit.
+
+```{r}
+# Verification that PACF cuts off after around lag 2:
+pacf(Value,main="PACF of Housing Starts", xlim = c(-1, 5))
+```
+
+#### **Parts (d) and (e)**
+
+#### Model 1: Linear
+```{r}
+# linear
+t<-seq(1987, 2017,length=length(Value))
+m1=lm(Value~t)
+plot(Value,ylab="Housing Starts", xlab="Time", lwd=2, col='skyblue3', xlim=c(1987,2017))
+lines(t,m1$fit,col="red3",lwd=2)
+plot(m1,pch=20,which = c(1))
+```
+
+###### The residuals have an oscillating pattern, indicating that the linear model did not capture all the signal in the data.
+
+#### Model 2: Quadratic
+```{r}
+m2=lm(Value~t+I(t^2))
+plot(Value,ylab="Housing Starts", xlab="Time", lwd=2, col='skyblue3', xlim=c(1987,2017))
+lines(t,m2$fit,col="red3",lwd=2)
+plot(m2,pch=20,which = c(1))
+```
+
+###### The residuals have a linear pattern between the fitted values of about 60 to 105, indicating that the quadratic model did not capture all the signal in the data.
+
+#### Model 3: Log-Linear
+```{r}
+m3=lm(log(Value)~t) 
+plot(log(Value),ylab="Housing Starts", xlab="Time", col='skyblue3', xlim=c(1987,2017))
+lines(t,m3$fit,col="red3",type='l',lwd=2, ylim = c(-2,7))
+plot(m3,pch=20,which = c(1))
+```
+
+###### The pattern in the residuals indicates that the log-linear nodel did not capture all the signal in the data.
+
+#### Model 4: Log-quadratic model
+```{r}
+lvalue<-log(Value)
+t2<-t^2
+plot(lvalue,xlab="Year", ylab="Log(Housing Starts)", col='skyblue3')
+m4=lm(lvalue~t+t2)
+lines(t,m4$fit,col="red3",lwd=2)
+plot(m4,pch=20,which = c(1))
+```
+
+###### The log-quadratic model has a linear pattern in its residuals between fitted values of 4.2 and 4.5 in the log space. This pattern indicates that the model does not capture all the signal in the data.
+
+#### Model 5: Log-quadratic-periodic
+```{r}
+sin.t<-sin(2*pi*t)
+cos.t<-cos(2*pi*t)
+plot(lvalue,xlab="Year", ylab="Log(Value)", col='skyblue3')
+m5=lm(lvalue~t+t2+sin.t+cos.t)
+lines(t, m5$fit,col="red3",lwd=2)
+plot(m5,pch=20,which = c(1))
+```
+
+###### The log-quadratic periodic model has a pattern in the residuals similar to the log-quadratic model, which indicates that the model also did not capture all the signal in the data.
+
+#### **Part (f)**
+
+#### Histogram of Residuals - Model 1: Linear
+
+```{r}
+hist(residuals(m1))
+```
+
+###### The residuals cluster around zero, but there are some high-valued residuals.
+
+#### Histogram of Residuals - Model 2: Quadratic
+```{r}
+hist(residuals(m2))
+```
+
+###### The residuals generally appear to fit close to a normal distribution. There are fewer high-valued residuals than in the linear case.
+
+#### Histogram of Residuals - Model 3: Log-Linear
+```{r}
+hist(residuals(m3))
+```
+
+###### The residuals are clustered around zero but have a negative skew.
+
+#### Histogram of Residuals - Model 4: Log-quadratic model
+```{r}
+hist(residuals(m4))
+```
+
+###### The residuals appear to have a negative skew.
+
+#### Histogram of Residuals - Model 5: Log-quadratic-periodic
+```{r}
+hist(residuals(m5))
+```
+
+###### Like in the previous histogram, the residuals again appear to have a negative skew.
+
+#### **Part (g)**
+
+```{r}
+library(tseries)
+# Model 1: Linear
+jarque.bera.test(residuals(m1))
+# Model 2: Quadratic
+jarque.bera.test(residuals(m2))
+# Model 3: Log-Linear
+jarque.bera.test(residuals(m3))
+# Model 4: Log-quadratic model
+jarque.bera.test(residuals(m4))
+# Model 5: Log-quadratic-periodic
+jarque.bera.test(residuals(m5))
+```
+
+###### We know that the Jarque Bera test is used to determine normality.
+###### We reject normality for the Log-linear, Log-quadratic, and Log-quadratic-periodic models at the 5% significance level.
+###### For the Linear and Quadratic models, we note that the p-values are very close to 0.05 for both models, and so normality for these models would be rejected at the 10% significance level.
+###### In all, due to none of the models having residuals that appear to follow a normal distribution at the 10% significance level, we can claim that all the models are misspecified as there is signal in the data that all do not capture.
+
+#### **Part (h)**
+
+###### # Model 1: Linear
+
+```{r}
+acf(residuals(m1),main="ACF of m1 Residuals")
+#acf(diff(residuals(m1)),main="ACF of m1 Residuals")
+```
+
+###### The ACF suggests that the data can be estimated using an MA(25) model as the ACF is zero after lag 25. Since all the lags up to lag 25 are significant, the residuals have a structure that can be modeled, indicating that our model can be improved.
+
+###### The ACF is not consistent with the signature which would lead us to use an AR model.
+
+```{r}
+pacf(residuals(m1),main="PACF of m1 Residuals")
+#pacf(diff(residuals(m1)),main="PACF of m1 Residuals")
+```
+
+###### The PACF has significant time lags up to 15 lags and one significant lag at 20.
+
+###### # Model 2: Quadratic
+
+```{r}
+acf(residuals(m2),main="ACF of m2 Residuals")
+#acf(diff(residuals(m2)),main="ACF of m2 Residuals")
+```
+
+###### The ACF indicates that an MA(25) model would be appropriate for the residuals of this model. The residuals have a structure that can be modeled, indicating that our model can be improved.
+
+```{r}
+pacf(residuals(m2),main="PACF of m2 Residuals")
+#pacf(diff(residuals(m2)),main="PACF of m2 Residuals")
+```
+
+###### The PACF has the highest significant lags at 14, 20, and 25.
+
+###### # Model 3: Log-Linear
+
+```{r}
+acf(residuals(m3),main="ACF of m3 Residuals")
+#acf(diff(residuals(m3)),main="ACF of m3 Residuals")
+```
+
+###### The ACF indicates that an MA(25) model would be appropriate for the residuals of this model. The residuals have a structure that can be modeled, indicating that our model can be improved.
+
+```{r}
+pacf(residuals(m3),main="PACF of m3 Residuals")
+#pacf(diff(residuals(m3)),main="PACF of m3 Residuals")
+```
+
+###### The PACF has the highest significant lags at 15, 20, and 25.
+
+
+
+###### Model 4: Log-quadratic model
+
+```{r}
+acf(residuals(m4),main="ACF of m4 Residuals")
+#acf(diff(residuals(m5)),main="ACF of m5 Residuals")
+```
+
+###### The ACF indicates that an MA(25) model would be appropriate for the residuals of this model. The residuals have a structure that can be modeled, indicating that our model can be improved.
+
+```{r}
+pacf(residuals(m4),main="PACF of m4 Residuals")
+#pacf(diff(residuals(m5)),main="PACF of m5 Residuals")
+```
+
+###### The PACF has the highest significant lags at 15, 20, and 25.
+
+###### # Model 5: Log-quadratic-periodic
+
+```{r}
+acf(residuals(m5),main="ACF of m5 Residuals")
+#acf(diff(residuals(m6)),main="ACF of m6 Residuals")
+```
+
+###### The ACF indicates that an MA(25) model would be appropriate for the residuals of this model. The residuals have a structure that can be modeled, indicating that our model can be improved.
+
+```{r}
+pacf(residuals(m5),main="PACF of m5 Residuals")
+#pacf(diff(residuals(m6)),main="PACF of m6 Residuals")
+```
+
+#### **Part (i)**
+
+# Model 1: Linear
+```{r}
+summary(m1)
+```
+
+###### The adjusted R-squared value is 0.1093 indicating that the model is not particularly good at predicting New Privately Owned Housing Units Started.
+
+###### Both intercept and time variable are significant, with very low p-values.
+
+# Model 2: Quadratic
+```{r}
+summary(m2)
+```
+
+###### The adjusted R-squared value is 0.2073 indicating that the model is not particularly good at predicting New Privately Owned Housing Units Started, though it can explain a lot more variation in the dependent variable than the linear model.
+
+###### The intercept and both time variables are significant, with very low p-values.
+
+# Model 3: Log-Linear
+```{r}
+summary(m3)
+```
+
+###### The adjusted R-squared value is 0.1342 indicating that the model is not particularly good at predicting New Privately Owned Housing Units Started, and is worse than the quadratic model.
+
+###### The intercept and time variable are both significant, with very low p-values.
+
+# Model 4: Log-quadratic model
+```{r}
+summary(m4)
+```
+
+###### The adjusted R-squared value is 0.1901 indicating that the model is not particularly good at predicting New Privately Owned Housing Units Started.
+
+###### The intercept and both time variables are significant, with very low p-values.
+
+# Model 5: Log-quadratic-periodic
+```{r}
+summary(m5)
+```
+
+###### The adjusted R-squared value is 0.1862, indicating that the model is not particularly good at predicting New Privately Owned Housing Units Started.
+
+###### The intercept and time variables are significant, with very low p-values, but the periodic variables are not significant.
+
+#### **Part (j)**
+
+###### AIC
+```{r}
+AIC(m1)
+AIC(m2)
+AIC(m3)
+AIC(m4)
+AIC(m5)
+```
+
+###### Based on the AIC, the Log-quadratic model seems to be the best, followed closely by the Log-quadratic-periodic model.
+
+###### BIC
+```{r}
+BIC(m1)
+BIC(m2)
+BIC(m3)
+BIC(m4)
+BIC(m5)
+```
+
+###### Based on the BIC, the Log-quadratic model seems to be the best, followed closely by the Log-quadratic-periodic model.
+
+###### Therefore, we We choose the Log-quadratic model. Both AIC and BIC agree that it is the best model.
+
+#### **Part (k)**
+
+###### Our h-steps are in months.
+
+```{r}
+HoltWinters(Value)
+plot(Value,xlab="Year", ylab="Housing Starts")
+lines(HoltWinters(Value)$fitted[,1],col="red")
+```
+
+# Try Holt-Winters Prediction
+```{r}
+value.hw<-HoltWinters(Value)
+predict(value.hw,n.ahead=16)
+plot(Value,xlim=c(1987,2019.4),xlab="Year", ylab="Housing Starts")
+lines(predict(value.hw,n.ahead=16),col=2)
+```
+
+# Forecast using preferred model with uncertainty prediction interval
+```{r}
+#plot(Value,main="Data",xlab="Year", ylab="Housing Starts")
+plot(forecast(Value),main="Data with Respective Point and Interval Forecasts",xlab="Year", ylab="Housing Starts",shadecols="oldstyle")
+tn=data.frame(t=seq(1987,2019.4))
+pred=predict(lm(lvalue~t+t^2), tn, se.fit = TRUE)
+pred.plim = predict(lm(lvalue~t+t^2), tn, level=0.95, interval="prediction")
+pred.clim = predict(lm(lvalue~t+t^2), tn, level=0.95, interval="confidence")
+matplot(tn$t,cbind(pred.clim, pred.plim[,-1]),
+        lty=c(1,1,1,3,3), type="l", lwd=2, ylab="predicted y",xlab="Time")
+```
+
+###### **2. Modeling and Forecasting Seasonality**
+
+#### **Part (a)**
+
+```{r}
+# Creat dummy variables (monthly)
+library(dummies)
+library(zoo)
+
+df<-data.frame(date=seq(as.Date("1987/1/1"), as.Date("2017/12/1"), "months"))
+df$Month<-format(as.yearmon(df$date), "M%m") 
+df<-dummy.data.frame(df, sep="_")
+colnames(df)<-gsub("Month_", "", colnames(df)) 
+# Now we have a new dataframe "df" contains monthly dummies 
+
+dummyreg<-lm(Value~M02+M03+M04+M05+M06+M07+M08+M09+M10+M11+M12,data=df)
+summary(dummyreg)
+```
+
+#### **Part (b)**
+
+```{r}
+plot(dummyreg$coef,type='l',ylab='Seasonal Factors', xlab="Season",lwd=2, main="Plot of Estimated Seasonal Factors")
+#hist(dummyreg$res,main="Histogram of Residuals",col="skyblue3")
+```
+
+###### It appears that between April and September - the summer months - more housing units are started, which makes sense.
+
+#### **Part (c)**
+
+```{r}
+plot(stl(Value,s.window="periodic"))
+forecast(Value)
+summary(forecast(Value))
+```
+
+#### Full Model
+
+```{r}
+seasonal<-tslm(Value~season) 
+summary(seasonal)
+
+fullmodel<-tslm(Value~trend+season+0)
+
+plot(Value,ylab="Housing Starts", xlab="Time", lwd=2, col='skyblue3', xlim=c(1987,2017))
+lines(t,fullmodel$fit,col="red3",lwd=2)
+```
+
+#### Plot of Residuals vs. Fitted Values
+
+```{r}
+plot(fullmodel,pch=20,which = c(1))
+```
+
+###### We observe that there is not a particularly discernible trend in the residuals, especially not compared to our previous models.
+
+#### **Part (d)**
+
+```{r}
+summary(fullmodel)
+```
+
+###### We observe that the Adjusted R-Squared value is 0.9247, so our model is much better than the models we had before. The season dummies have much larger standard errors than the trend, which makes sense as their estimated coefficients are much larger.
+
+#### **Part (e)**
+
+```{r}
+jarque.bera.test(residuals(fullmodel))
+```
+
+###### The p-value is 0.1646, so we are not able to reject the null hypothesis that the residuals follow a normal distribution.
+
+#### **Part (f)**
+
+#### ACF of residuals
+
+```{r}
+acf(residuals(fullmodel),main="ACF of full model Residuals")
+#acf(diff(residuals(fullmodel)),main="ACF of full model Residuals")
+```
+
+###### Since the ACF values end at about 2, an MA(2) model could be used to predict them. However, this is much better than the ACF plots of previous model residuals, which were dependent on 20 lags and even 25 lags.
+
+#### PACF of residuals
+
+```{r}
+pacf(residuals(fullmodel),main="PACF of full model Residuals")
+#pacf(diff(residuals(fullmodel)),main="PACF of full model Residuals")
+```
+
+###### The significant PACF values end after about 2 months.
+
+#### **Part (g)**
+
+```{r}
+fit=ets(Value)
+plot(fit)
+accuracy(fit)
+plot(forecast(fit,level=c(50,80,95),h=16))
+```
